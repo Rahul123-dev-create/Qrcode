@@ -17,11 +17,7 @@ function loadMongooseModel(modelKey, modulePath) {
 }
 
 async function connectDb(uri) {
-  // Make sure the embedded datastore has finished seeding before we serve traffic,
-  // so the very first request never observes an un-seeded (empty) store.
-  await localDbInstance.ready;
-
-  if (process.env.USE_LOCAL_DB === "true" || !uri || String(uri).trim() === "") {
+  if (process.env.USE_LOCAL_DB === "true" || !uri || uri.trim() === "") {
     console.log("ℹ️ Running in Standalone Embedded Database Mode (Persistent JSON datastore).");
     isMongoConnected = false;
     return false;
@@ -29,16 +25,10 @@ async function connectDb(uri) {
 
   try {
     console.log("⏳ Attempting to connect to MongoDB...");
-    mongoose.set("strictQuery", false);
-    await Promise.race([
-      mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 2000,
-        socketTimeoutMS: 5000,
-      }),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Connect timeout")), 2500)
-      ),
-    ]);
+    // Allow up to 10 seconds for the cloud SSL/TLS handshake
+    await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+    });
 
     isMongoConnected = true;
     console.log("✅ MongoDB connected successfully");
