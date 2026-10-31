@@ -93,23 +93,4 @@ router.post(
   })
 );
 
-/**
- * GET /api/transactions/product/:productId/history
- * Get transaction history for a product
- */
-router.get(
-  "/product/:productId/history",
-  asyncHandler(async (req, res) => {
-    const transactions = await transactionService.getProductTransactionHistory(
-      req.params.productId,
-      req.query.limit || 50
-    );
-
-    res.json({
-      success: true,
-      data: transactions,
-    });
-  })
-);
-
 module.exports = router;

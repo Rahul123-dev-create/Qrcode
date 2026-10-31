@@ -1,12 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
-  LayoutDashboard,
   Package,
   ScanLine,
-  FileSpreadsheet,
-  Printer,
-  Users,
   LogOut,
   Menu,
   X,
@@ -19,7 +15,7 @@ import {
 import { useEffect, useState } from "react";
 
 export default function Layout({ children }) {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -45,13 +41,15 @@ export default function Layout({ children }) {
   const toggleTheme = () => setDarkMode((val) => !val);
 
   const navItems = [
-    { to: "/", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/products", label: "Products Catalog", icon: Package },
-    { to: "/scan", label: "QR Scanner", icon: ScanLine, highlight: true },
-    { to: "/transactions", label: "Stock Ledger", icon: FileSpreadsheet },
-    { to: "/print-labels", label: "Print Labels", icon: Printer },
-    ...(isAdmin ? [{ to: "/users", label: "User Access", icon: Users }] : []),
+    { to: "/", label: "Inventory", icon: Package },
+    { to: "/scan", label: "Scan Product", icon: ScanLine, highlight: true },
   ];
+
+  // "/" also covers the per-product detail screens (/products/:id).
+  const isActive = (to) =>
+    to === "/"
+      ? location.pathname === "/" || location.pathname.startsWith("/products")
+      : location.pathname === to;
 
   return (
     <div className="min-h-screen bg-slate-950 flex">
@@ -71,7 +69,7 @@ export default function Layout({ children }) {
         {/* Nav Links */}
         <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
           {navItems.map(({ to, label, icon: Icon, highlight }) => {
-            const active = location.pathname === to;
+            const active = isActive(to);
             return (
               <Link
                 key={to}
@@ -159,7 +157,7 @@ export default function Layout({ children }) {
                 to={to}
                 onClick={() => setMenuOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
-                  location.pathname === to ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                  isActive(to) ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
                 }`}
               >
                 <Icon className="w-4 h-4" />

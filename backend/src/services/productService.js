@@ -155,18 +155,54 @@ class ProductService {
     };
   }
 
+  /**
+   * Builds the full product-detail payload consumed by the dedicated
+   * scanned-product screen:
+   *   - product + live balance + lifecycle status
+   *   - inward vs outward totals
+   *   - two separate chronological movement histories
+   */
+  async buildProductDetail(product) {
+    const transactions = await Transaction.find({ product: String(product._id) })
+      .populate("user", "username name role")
+      .sort({ createdAt: -1 });
+
+    const inwardTransactions = transactions.filter((tx) => tx.type === "inward");
+    const outwardTransactions = transactions.filter((tx) => tx.type === "outward");
+
+    const totalInward = inwardTransactions.reduce((sum, tx) => sum + (tx.quantity || 0), 0);
+    const totalOutward = outwardTransactions.reduce((sum, tx) => sum + (tx.quantity || 0), 0);
+
+    return {
+      product,
+      balance: product.quantity,
+      status: product.status, // "active", "deleted" or "archived"
+      isDeleted: product.status === "deleted" || product.status === "archived",
+      deletedAt: product.deletedAt || null,
+      summary: {
+        totalInward,
+        totalOutward,
+        transactionCount: transactions.length,
+        inwardCount: inwardTransactions.length,
+        outwardCount: outwardTransactions.length,
+      },
+      inwardTransactions,
+      outwardTransactions,
+    };
+  }
+
   async getProductById(id) {
     const product = await Product.findById(id);
     if (!product) {
       throw new AppError("Product not found", 404, "PRODUCT_NOT_FOUND");
     }
-    return product;
+    return this.buildProductDetail(product);
   }
 
   /**
    * Scan Inspector:
-   * Decodes scan input (ID, SKU, or JSON), returns full product status,
-   * balance, and chronological transaction history
+   * Decodes scan input (ID, SKU, or JSON payload) and returns the full
+   * product detail used by the scanned-product screen.
    */
   async inspectProductByScan(scanInput) {
     if (!scanInput) {
@@ -176,14 +212,14 @@ class ProductService {
     let parsedId = null;
     let parsedSku = null;
 
-    // Check if input is JSON payload
+    // Check if input is a JSON QR payload
     try {
       const parsed = JSON.parse(scanInput);
       if (parsed.id) parsedId = parsed.id;
       if (parsed.sku) parsedSku = parsed.sku;
     } catch {
-      // Treat as direct ID or SKU
-      const trimmed = scanInput.trim();
+      // Treat as a direct ID or SKU
+      const trimmed = String(scanInput).trim();
       if (/^[0-9a-fA-F]{24}$/.test(trimmed)) {
         parsedId = trimmed;
       } else {
@@ -207,33 +243,7 @@ class ProductService {
       );
     }
 
-    // Fetch transaction history for this product
-    const transactions = await Transaction.find({ product: String(product._id) })
-      .populate("user", "username name role")
-      .sort({ createdAt: -1 })
-      .limit(50);
-
-    // Compute inward vs outward stats
-    let totalInward = 0;
-    let totalOutward = 0;
-    for (const tx of transactions) {
-      if (tx.type === "inward") totalInward += tx.quantity || 0;
-      if (tx.type === "outward") totalOutward += tx.quantity || 0;
-    }
-
-    return {
-      product,
-      balance: product.quantity,
-      status: product.status, // "active", "deleted", or "archived"
-      isDeleted: product.status === "deleted",
-      deletedAt: product.deletedAt || null,
-      summary: {
-        totalInward,
-        totalOutward,
-        transactionCount: transactions.length,
-      },
-      recentTransactions: transactions,
-    };
+    return this.buildProductDetail(product);
   }
 
   async updateProduct(id, data) {
@@ -321,22 +331,6 @@ class ProductService {
     product.deletedAt = new Date().toISOString();
     product.deletedBy = userId;
     await product.save();
-
-    // Record deletion event in transaction ledger
-    try {
-      const delTx = new Transaction({
-        product: product._id,
-        type: "outward",
-        quantity: 0,
-        previousQuantity: product.quantity,
-        newQuantity: product.quantity,
-        notes: `Product marked deleted/archived by user on ${new Date().toLocaleDateString()}`,
-        user: userId || "system",
-      });
-      await delTx.save();
-    } catch (e) {
-      // Non-fatal
-    }
 
     return {
       success: true,

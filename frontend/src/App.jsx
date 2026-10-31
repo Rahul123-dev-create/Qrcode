@@ -5,12 +5,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import PrivateRoute from "./components/PrivateRoute";
 import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
 import ProductsPage from "./pages/ProductsPage";
+import ProductDetailPage from "./pages/ProductDetailPage";
 import ScanPage from "./pages/ScanPage";
-import TransactionsPage from "./pages/TransactionsPage";
-import PrintLabelsPage from "./pages/PrintLabelsPage";
-import UsersPage from "./pages/UsersPage";
 
 function App() {
   return (
@@ -22,16 +19,6 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route
                 path="/"
-                element={
-                  <PrivateRoute>
-                    <Layout>
-                      <DashboardPage />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/products"
                 element={
                   <PrivateRoute>
                     <Layout>
@@ -51,31 +38,11 @@ function App() {
                 }
               />
               <Route
-                path="/transactions"
+                path="/products/:id"
                 element={
                   <PrivateRoute>
                     <Layout>
-                      <TransactionsPage />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/print-labels"
-                element={
-                  <PrivateRoute>
-                    <Layout>
-                      <PrintLabelsPage />
-                    </Layout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/users"
-                element={
-                  <PrivateRoute>
-                    <Layout>
-                      <UsersPage />
+                      <ProductDetailPage />
                     </Layout>
                   </PrivateRoute>
                 }

@@ -160,6 +160,9 @@ class LocalDb {
     this.users = [];
     this.products = [];
     this.transactions = [];
+    // Resolves once the store is loaded (and seeded on first boot).
+    // connectDb() awaits this so the first request never hits an empty store.
+    this.ready = Promise.resolve();
     LocalDb.instance = this;
     this.load();
   }
@@ -173,15 +176,15 @@ class LocalDb {
         this.users = data.users || [];
         this.products = data.products || [];
         this.transactions = data.transactions || [];
-        if (this.products.length === 0) {
-          this.seed();
+        if (this.users.length === 0 && this.products.length === 0) {
+          this.ready = this.seed();
         }
       } else {
-        this.seed();
+        this.ready = this.seed();
       }
     } catch (err) {
       console.warn("Could not load local db file, seeding fresh:", err.message);
-      this.seed();
+      this.ready = this.seed();
     }
   }
 
@@ -199,7 +202,7 @@ class LocalDb {
     }
   }
 
-  seed() {
+  async seed() {
     this.users = [
       {
         _id: "657000000000000000000001",
@@ -301,19 +304,24 @@ class LocalDb {
       },
     ];
 
-    for (const prod of sampleProducts) {
-      const payload = JSON.stringify({ id: prod._id, sku: prod.sku, name: prod.name });
-      prod.qrCode = QRCode.toDataURL(payload, { width: 300, margin: 2 });
-    }
+    const qrCodes = await Promise.all(
+      sampleProducts.map((prod) =>
+        QRCode.toDataURL(JSON.stringify({ id: prod._id, sku: prod.sku, name: prod.name }), {
+          errorCorrectionLevel: "M",
+          width: 320,
+          margin: 2,
+          type: "image/png",
+        })
+      )
+    );
 
-    Promise.all(sampleProducts.map((p) => p.qrCode)).then((urls) => {
-      sampleProducts.forEach((p, idx) => {
-        p.qrCode = urls[idx];
-      });
+    sampleProducts.forEach((prod, idx) => {
+      prod.qrCode = qrCodes[idx];
+    });
 
-      this.products = sampleProducts;
+    this.products = sampleProducts;
 
-      this.transactions = [
+    this.transactions = [
         {
           _id: "657200000000000000000001",
           _type: "Transaction",
@@ -379,10 +387,9 @@ class LocalDb {
           createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
           updatedAt: new Date(Date.now() - 3600000 * 4).toISOString(),
         },
-      ];
+    ];
 
-      this.persist();
-    });
+    this.persist();
   }
 
   matchQuery(doc, query) {

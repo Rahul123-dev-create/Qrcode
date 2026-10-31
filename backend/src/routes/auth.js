@@ -8,14 +8,16 @@ const router = express.Router();
 
 /**
  * POST /api/auth/register
- * Register a new user
+ * Register a new account. Public self-registration always creates an
+ * `operator` account — privileged roles can only be granted by an admin
+ * through POST /api/auth/users.
  */
 router.post(
   "/register",
   authLimiter,
   asyncHandler(async (req, res) => {
-    const { username, password, name, role } = req.body;
-    const result = await authService.register(username, password, name, role);
+    const { username, password, name } = req.body;
+    const result = await authService.register(username, password, name, "operator");
     res.status(201).json({
       success: true,
       data: result,

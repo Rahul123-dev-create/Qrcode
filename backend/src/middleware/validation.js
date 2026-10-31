@@ -5,15 +5,56 @@
 
 const { AppError } = require("./errorHandler");
 
-// Sanitize input to prevent XSS
+// Control characters are never valid in user-supplied text and only exist to
+// corrupt stored data or smuggle payloads through logs/headers.
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+
+/**
+ * Normalises a string value: trims surrounding whitespace and strips control
+ * characters.
+ *
+ * NOTE: we intentionally do NOT HTML-entity-encode `" < > '`. This is a JSON
+ * API and the React client escapes on render, so encoding here gave no
+ * security benefit while corrupting legitimate data — a QR scan payload of
+ * `{"id":"...","sku":"..."}` was rewritten to `{&quot;id&quot;:...}`, which
+ * broke every scan lookup, and names such as "Men's Shirt" were mangled.
+ */
 const sanitizeInput = (input) => {
   if (typeof input !== "string") return input;
-  return input
-    .replace(/[<>\"']/g, (match) => {
-      const escapeMap = { "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#x27;" };
-      return escapeMap[match];
-    })
-    .trim();
+  return input.replace(CONTROL_CHARS, "").trim();
+};
+
+// Keys used for NoSQL operator injection ($gt, $ne, $where, dotted paths).
+const isUnsafeKey = (key) => key.startsWith("$") || key.includes(".");
+
+/**
+ * In-place sanitisation of a request body/query object:
+ *  - string values are normalised via sanitizeInput
+ *  - nested objects/arrays are traversed recursively
+ *  - operator-injection keys are removed
+ */
+const sanitizeObject = (target) => {
+  if (!target || typeof target !== "object") return target;
+
+  Object.keys(target).forEach((key) => {
+    if (isUnsafeKey(key)) {
+      delete target[key];
+      return;
+    }
+
+    const value = target[key];
+    if (typeof value === "string") {
+      target[key] = sanitizeInput(value);
+    } else if (Array.isArray(value)) {
+      target[key] = value.map((item) =>
+        item && typeof item === "object" ? sanitizeObject(item) : sanitizeInput(item)
+      );
+    } else if (value && typeof value === "object") {
+      target[key] = sanitizeObject(value);
+    }
+  });
+
+  return target;
 };
 
 // Validate email format
@@ -42,24 +83,8 @@ const validateRequired = (data, requiredFields) => {
 // Main validation middleware
 const validateInput = (req, _res, next) => {
   try {
-    // Sanitize body
-    if (req.body && typeof req.body === "object") {
-      Object.keys(req.body).forEach((key) => {
-        if (typeof req.body[key] === "string") {
-          req.body[key] = sanitizeInput(req.body[key]);
-        }
-      });
-    }
-
-    // Sanitize query
-    if (req.query && typeof req.query === "object") {
-      Object.keys(req.query).forEach((key) => {
-        if (typeof req.query[key] === "string") {
-          req.query[key] = sanitizeInput(req.query[key]);
-        }
-      });
-    }
-
+    sanitizeObject(req.body);
+    sanitizeObject(req.query);
     next();
   } catch (err) {
     next(err);

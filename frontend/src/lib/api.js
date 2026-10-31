@@ -14,10 +14,18 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const status = err.response?.status;
+    const url = err.config?.url || "";
+    const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/register");
+
+    // Only force a sign-out for genuine session expiry — never for a failed
+    // login/register attempt, which would wipe the form and reload the page.
+    if (status === 401 && !isAuthEndpoint) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(err);
   }

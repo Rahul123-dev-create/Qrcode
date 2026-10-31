@@ -4,7 +4,6 @@ const cors = require("cors");
 const authRoutes = require("./routes/auth");
 const productRoutes = require("./routes/products");
 const transactionRoutes = require("./routes/transactions");
-const dashboardRoutes = require("./routes/dashboard");
 
 const { errorHandler } = require("./middleware/errorHandler");
 const { validateInput } = require("./middleware/validation");
@@ -47,7 +46,6 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/transactions", transactionRoutes);
-app.use("/api/dashboard", dashboardRoutes);
 
 // 404 handler
 app.use((_req, res) => {
